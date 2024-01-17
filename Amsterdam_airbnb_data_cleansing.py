@@ -1,18 +1,8 @@
 # Databricks notebook source
-# MAGIC %md-sandbox
-# MAGIC
-# MAGIC <div style="text-align: center; line-height: 0; padding-top: 9px;">
-# MAGIC   <img src="https://databricks.com/wp-content/uploads/2018/03/db-academy-rgb-1200px.png" alt="Databricks Learning" style="width: 600px">
-# MAGIC </div>
-
-# COMMAND ----------
-
 # DBTITLE 0,--i18n-8c6d3ef3-e44b-4292-a0d3-1aaba0198525
 # MAGIC %md 
 # MAGIC
-# MAGIC
-# MAGIC
-# MAGIC # Data Cleansing
+# MAGIC # Airbnb Amsterdam Data
 # MAGIC
 # MAGIC We will be using Spark to do some exploratory data analysis & cleansing of the Aibnb data from Amsterdam.
 # MAGIC
@@ -36,7 +26,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Loading the data:
+# MAGIC ### Loading the data - download
 
 # COMMAND ----------
 
@@ -68,18 +58,30 @@ download_file(file_name, url_name)
 
 # COMMAND ----------
 
-# DBTITLE 0,--i18n-969507ea-bffc-4255-9a99-2306a594625f
-# MAGIC %md 
-# MAGIC
-# MAGIC ## Load Dataset
-# MAGIC
-# MAGIC Let's load the Airbnb dataset in.
+# MAGIC %md
+# MAGIC #### Loading the data - ```spark.read.csv```:
 
 # COMMAND ----------
 
-file_path = f"{DA.paths.datasets}/airbnb/sf-listings/sf-listings-2019-03-06.csv"
+absolute_file_path = os.path.abspath("./data/listings.csv")
 
-raw_df = spark.read.csv(file_path, 
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC It's really annyoing, but databricks uses this "distributed file system" thing, starting with ```dfbs```. That doesn't work with this. We have to start with ```file:```
+
+# COMMAND ----------
+
+absolute_file_path = "file:" + absolute_file_path
+
+# COMMAND ----------
+
+print(absolute_file_path)
+
+# COMMAND ----------
+
+
+raw_df = spark.read.csv(absolute_file_path, 
                         header="true", 
                         inferSchema="true", 
                         multiLine="true", 
@@ -94,7 +96,7 @@ display(raw_df)
 
 # COMMAND ----------
 
-raw_df.columns
+print(raw_df.columns)
 # let's have a look at the columns
 
 # COMMAND ----------
