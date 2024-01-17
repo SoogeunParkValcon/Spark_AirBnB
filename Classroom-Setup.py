@@ -3,6 +3,12 @@
 
 # COMMAND ----------
 
+아 어쩌라고요??
+
+# my name is Soogeun
+hallo = "hallo!!"
+
+
 import re
 
 DA = DBAcademyHelper(course_config, lesson_config)
