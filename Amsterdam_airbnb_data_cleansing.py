@@ -96,17 +96,13 @@ display(raw_df)
 
 # COMMAND ----------
 
-print(raw_df.columns)
-# let's have a look at the columns
+# MAGIC %md
+# MAGIC #### Studying the features:
 
 # COMMAND ----------
 
-# DBTITLE 0,--i18n-94856418-c319-4915-a73e-5728fcd44101
-# MAGIC %md 
-# MAGIC
-# MAGIC
-# MAGIC
-# MAGIC For the sake of simplicity, only keep certain columns from this dataset. We will talk about feature selection later.
+print(raw_df.columns)
+# let's have a look at the columns
 
 # COMMAND ----------
 
@@ -116,58 +112,157 @@ print(len(raw_df.columns)) # number of columns
 
 # COMMAND ----------
 
-raw_df.cube("state").count().show()
+print(raw_df.shape()) # spark dataframe does not have the object "shape"
+
+# COMMAND ----------
+
+raw_df.cube("neighbourhood_cleansed").count().show()
 # this is how I get the frequency table of the features with Spark DF
 
 # COMMAND ----------
 
+display(raw_df.groupby("neighbourhood_cleansed").count().orderBy("count", ascending=False))
+# similar way of doing the same thing, with the .groupby method
+
+# COMMAND ----------
+
+display(raw_df.select("neighbourhood_cleansed").distinct())
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC It can be seen above that there are features like "state" that are identical across the entire set of rows.
+# MAGIC ```id``` is ofc worth keeping:
+
+# COMMAND ----------
+
+# each row has a unique id
+raw_df.select("id").distinct().count()
+
+# COMMAND ----------
+
+raw_df.count()
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Host response time can also be a fun feature:
+
+# COMMAND ----------
+
+display(raw_df.groupBy("host_response_time").count())
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC There are too many ```property_type```'s. I will not include this:
+
+# COMMAND ----------
+
+display(raw_df.groupBy("property_type").count())
+
+# COMMAND ----------
+
+#I wanna know how many values of the feature "accommodates" is NA
+display(raw_df.groupBy("accommodates").count())
+
+print(f"This feature has {raw_df.filter(raw_df.accommodates.isNull()).count()} missing values.")
+
+
+# COMMAND ----------
+
+display(raw_df.groupBy("bathrooms_text").count())
+
+print(f"This feature has {raw_df.filter(raw_df.bathrooms_text.isNull()).count()} missing values.")
+
+
+# COMMAND ----------
+
+display(raw_df.groupBy("beds").count())
+
+print(f"This feature has {raw_df.filter(raw_df.beds.isNull()).count()} missing values.")
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC By studying the features, I've decided on the following:
 
 # COMMAND ----------
 
 columns_to_keep = [
-    "host_is_superhost",
-    "cancellation_policy",
-    "instant_bookable",
-    "host_total_listings_count",
-    "neighbourhood_cleansed",
-    "latitude",
-    "longitude",
-    "property_type",
-    "room_type",
+    "id",
+    "host_response_time",
     "accommodates",
-    "bathrooms",
-    "bedrooms",
+    "neighbourhood_cleansed",
+    "bathrooms_text",
     "beds",
-    "bed_type",
     "minimum_nights",
     "number_of_reviews",
     "review_scores_rating",
-    "review_scores_accuracy",
-    "review_scores_cleanliness",
-    "review_scores_checkin",
-    "review_scores_communication",
-    "review_scores_location",
-    "review_scores_value",
+    "calculated_host_listings_count",
+    "reviews_per_month",
     "price"
 ]
 
-# we will try to predict the "price" variable
 
-base_df = raw_df.select(columns_to_keep) # this is how slicing works in Spark DF
+# COMMAND ----------
+
+base_df = raw_df.select(columns_to_keep) 
+# above, we select columns of interest from raw_df and return a new DataFrame base_df
+
 print(base_df.cache().count())
+# Caching a DataFrame in memory improves the performance of the queries that are often performed on the DataFrame.
+# Calling the count() method of the DataFrame forces the cache operation to occur.
+
 print(len(base_df.columns))
+# output the number of columns in the base_df DataFrame
+
 display(base_df)
+# output the DataFrame
+
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC Whenever you define a DF in Spark, you get displayed something called a "Schema". It describes which columns are which data types
+from pyspark.sql.functions import col, sum
+
+display(base_df.select([sum(col(c).isNull().cast("int")).alias(c) for c in base_df.columns]))
+# Using a list comprehension to iterate over columns in `base_df`, and for each column:
+# - apply the `isNull` function to check if that column cell is null, 
+# - chain `cast("int")` to convert the boolean value to an integer
+# - apply the `sum` function to get the count of null values
+# - alias the resulting DataFrame column with the column name
+
+# display the resulting DataFrame
+
 
 # COMMAND ----------
 
-hallo_df = raw_df.select(["state", "country"])
+display(base_df.select([sum((col(c) == "N/A").cast("int")).alias(c) for c in base_df.columns]))
+# Using a list comprehension to iterate over columns in `base_df`, and for each column:
+# - apply the check if that column cell is equal to "N/A" using the (col(c) == "N/A") expression, 
+# - chain `cast("int")` to convert the boolean value to an integer
+# - apply the `sum` function to get the count of "N/A" values
+# - alias the resulting DataFrame column with the column name
+
+# display the resulting DataFrame
+
+
+# COMMAND ----------
+
+from pyspark.sql.functions import when
+
+base_df = base_df.withColumn("host_response_time", when(col("host_response_time") == "N/A", None).otherwise(col("host_response_time")))
+
+
+# COMMAND ----------
+
+display(base_df)
+# Displays the first 5 rows of the dataframe 'base_df'
+
+
+# COMMAND ----------
+
+base_df = base_df.drop("host_response_time")
 
 # COMMAND ----------
 
@@ -184,17 +279,13 @@ hallo_df = raw_df.select(["state", "country"])
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col, translate
+from pyspark.sql.functions import translate
 
-fixed_price_df = base_df.withColumn("price", translate(col("price"), "$,", "").cast("double"))
+fixed_price_df = base_df.withColumn("price", translate(col("price"), "$,", ""))
 
-display(fixed_price_df)
-# not sure how exactly this works, but this is how to convert the string into numeric (double)
+fixed_price_df = fixed_price_df.withColumn("price", col("price").cast("double"))
 
-# COMMAND ----------
 
-# MAGIC %md
-# MAGIC Our data is very skewed. Most observations are less than $1000.
 
 # COMMAND ----------
 
@@ -221,10 +312,6 @@ display(fixed_price_df.summary())
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 # DBTITLE 0,--i18n-bd55efda-86d0-4584-a6fc-ef4f221b2872
 # MAGIC %md 
 # MAGIC
@@ -246,6 +333,52 @@ display(fixed_price_df.summary())
 # COMMAND ----------
 
 dbutils.data.summarize(fixed_price_df) # very nice overview function of the dataframe in hand
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Does this nice ```dbutils.data.summarize()``` also work on pandas or PySpark pandas dataframe??
+
+# COMMAND ----------
+
+import pyspark.pandas as ps
+
+# from spark dataframe into PySpark pandas dataframe
+pyspark_pandas_df = ps.DataFrame(fixed_price_df)
+display(pyspark_pandas_df)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC _It indeed works on the_ ```pyspark-pandas-df```
+
+# COMMAND ----------
+
+dbutils.data.summarize(pyspark_pandas_df)
+
+# COMMAND ----------
+
+import pandas as pd
+
+# converting a spark dataframe to pandas dataframe
+pandas_df = fixed_price_df.toPandas()
+
+# display the pandas df
+display(pandas_df)
+
+
+# COMMAND ----------
+
+pandas_df["beds"].value_counts()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Nice, it also works on ```pd.dataframe```... interesting.
+
+# COMMAND ----------
+
+dbutils.data.summarize(pandas_df)
 
 # COMMAND ----------
 
@@ -327,9 +460,9 @@ pos_prices_df.cube("minimum_nights").count().show()
 
 # COMMAND ----------
 
-min_nights_df = pos_prices_df.filter(col("minimum_nights") <= 365)
+min_nights_filtered = pos_prices_df.filter(col("minimum_nights") <= 365)
 
-display(min_nights_df)
+print(min_nights_filtered.count())
 
 # COMMAND ----------
 
@@ -357,10 +490,10 @@ display(min_nights_df)
 
 # COMMAND ----------
 
-print(min_nights_df.count())
-print(min_nights_df.na.drop().count()) # number of rows after dropping out the missing values
+print(min_nights_filtered.count())
+print(min_nights_filtered.na.drop().count()) # number of rows after dropping out the missing values
 
-print(min_nights_df.count()) # by doing hte method "drop", that does not change the saved object "min_nights_df"
+print(min_nights_filtered.count()) # by doing hte method "drop", that does not change the saved object "min_nights_df"
 
 # COMMAND ----------
 
@@ -373,17 +506,40 @@ print(min_nights_df.count()) # by doing hte method "drop", that does not change 
 
 # COMMAND ----------
 
+min_nights_filtered.schema.fields
+
+# COMMAND ----------
+
 from pyspark.sql.functions import col
 from pyspark.sql.types import IntegerType
 
-integer_columns = [x.name for x in min_nights_df.schema.fields if x.dataType == IntegerType()] # this looks at the schema and finds the columns that are integer
-doubles_df = min_nights_df
+integer_columns = [x.name for x in min_nights_filtered.schema.fields if x.dataType == IntegerType()] 
+# this looks at the schema and finds the columns that are integer
 
+doubles_df = min_nights_filtered
+
+# from the dataset, convert the Integer types into Double types.
 for c in integer_columns:
     doubles_df = doubles_df.withColumn(c, col(c).cast("double"))
 
+
+# COMMAND ----------
+
+
 columns = "\n - ".join(integer_columns)
 print(f"Columns converted from Integer to Double:\n - {columns}")
+
+# COMMAND ----------
+
+[col(c).isNull()]
+
+# COMMAND ----------
+
+doubles_df.schema.fields
+
+# COMMAND ----------
+
+display(doubles_df.select([sum((col(c).isNull()).cast("int")).alias(c) for c in doubles_df.columns]))
 
 # COMMAND ----------
 
@@ -399,16 +555,7 @@ print(f"Columns converted from Integer to Double:\n - {columns}")
 from pyspark.sql.functions import when
 
 impute_cols = [
-    "bedrooms",
-    "bathrooms",
-    "beds", 
-    "review_scores_rating",
-    "review_scores_accuracy",
-    "review_scores_cleanliness",
-    "review_scores_checkin",
-    "review_scores_communication",
-    "review_scores_location",
-    "review_scores_value"
+    "beds", "review_scores_rating", "reviews_per_month"
 ]
 
 for c in impute_cols:
@@ -435,6 +582,15 @@ display(doubles_df.describe())
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC Since the ```Imputer``` only accepts numerical (double) as inputs, I will remove the ```bathrooms_text``` column:
+
+# COMMAND ----------
+
+doubles_df = doubles_df.drop("bathrooms_text")
+
+# COMMAND ----------
+
 from pyspark.ml.feature import Imputer
 
 imputer = Imputer(strategy="median", inputCols=impute_cols, outputCols=impute_cols)
@@ -450,6 +606,8 @@ print(imputer.explainParams()) # gives us the parameters for the imputation mode
 
 print(imputed_df.count())
 
+print(imputed_df.na.drop().count())
+
 print(raw_df.count())
 
 # COMMAND ----------
@@ -463,7 +621,15 @@ print(raw_df.count())
 
 # COMMAND ----------
 
-imputed_df.write.format("delta").mode("overwrite").save(f"{DA.paths.working_dir}/imputed_results") # writing the data
+absolute_dir_path = os.path.abspath("./data/")
+
+# COMMAND ----------
+
+absolute_dir_path = "file:" + absolute_dir_path
+
+# COMMAND ----------
+
+imputed_df.write.format("delta").mode("overwrite").save(f"{absolute_dir_path}/imputed_results") # writing the data
 
 # COMMAND ----------
 
