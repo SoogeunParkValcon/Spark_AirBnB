@@ -3,11 +3,9 @@
 
 # COMMAND ----------
 
-아 어쩌라고요??
+hallo = "annyoung!!"
 
-# my name is Soogeun
-hallo = "hallo!!"
-
+난 수근이야
 
 import re
 
