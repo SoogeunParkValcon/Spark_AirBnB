@@ -3,6 +3,10 @@
 
 # COMMAND ----------
 
+hallo = "annyoung!!"
+
+난 수근이야
+
 import re
 
 DA = DBAcademyHelper(course_config, lesson_config)
