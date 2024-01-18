@@ -25,6 +25,10 @@
 
 # COMMAND ----------
 
+1+1
+
+# COMMAND ----------
+
 import os
 absolute_dir_path = os.path.abspath("./data")
 absolute_dir_path = "file:" + absolute_dir_path
